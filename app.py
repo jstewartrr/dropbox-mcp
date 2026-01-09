@@ -1,6 +1,7 @@
 """
 Dropbox MCP Server for Sovereign Mind
 Provides file operations for MiddleGround Capital Dropbox
+With full team folder access support
 """
 
 import os
@@ -24,20 +25,39 @@ DROPBOX_ACCESS_TOKEN = os.environ.get("DROPBOX_ACCESS_TOKEN")
 DROPBOX_REFRESH_TOKEN = os.environ.get("DROPBOX_REFRESH_TOKEN")
 DROPBOX_APP_KEY = os.environ.get("DROPBOX_APP_KEY")
 DROPBOX_APP_SECRET = os.environ.get("DROPBOX_APP_SECRET")
+DROPBOX_SELECT_USER = os.environ.get("DROPBOX_SELECT_USER")  # Team member ID (dbmid:xxx)
 
-# Initialize Dropbox client
+# Timeout configuration for reliability
+DROPBOX_TIMEOUT = int(os.environ.get("DROPBOX_TIMEOUT", 120))  # 2 minutes default
+
+# Initialize Dropbox client with team member access
 def get_dropbox_client() -> dropbox.Dropbox:
-    """Get authenticated Dropbox client with auto-refresh."""
+    """Get authenticated Dropbox client with team member access and proper timeout."""
     if DROPBOX_REFRESH_TOKEN and DROPBOX_APP_KEY and DROPBOX_APP_SECRET:
-        # Use refresh token for long-lived access
+        # Build headers for team member access
+        headers = {}
+        if DROPBOX_SELECT_USER:
+            headers["Dropbox-API-Select-User"] = DROPBOX_SELECT_USER
+            logger.info(f"Using team member access: {DROPBOX_SELECT_USER}")
+        
+        # Use refresh token for long-lived access with team headers and timeout
         return dropbox.Dropbox(
             oauth2_refresh_token=DROPBOX_REFRESH_TOKEN,
             app_key=DROPBOX_APP_KEY,
-            app_secret=DROPBOX_APP_SECRET
+            app_secret=DROPBOX_APP_SECRET,
+            headers=headers if headers else None,
+            timeout=DROPBOX_TIMEOUT
         )
     elif DROPBOX_ACCESS_TOKEN:
         # Fallback to access token
-        return dropbox.Dropbox(DROPBOX_ACCESS_TOKEN)
+        headers = {}
+        if DROPBOX_SELECT_USER:
+            headers["Dropbox-API-Select-User"] = DROPBOX_SELECT_USER
+        return dropbox.Dropbox(
+            DROPBOX_ACCESS_TOKEN, 
+            headers=headers if headers else None,
+            timeout=DROPBOX_TIMEOUT
+        )
     else:
         raise ValueError("No Dropbox credentials configured")
 
@@ -48,7 +68,7 @@ def get_dropbox_client() -> dropbox.Dropbox:
 TOOLS = [
     {
         "name": "list_folder",
-        "description": "List files and folders in a Dropbox directory. Returns file names, sizes, and modification dates.",
+        "description": "[DROPBOX] List files and folders in a Dropbox directory. Returns file names, sizes, and modification dates.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -72,7 +92,7 @@ TOOLS = [
     },
     {
         "name": "search_files",
-        "description": "Search for files and folders in Dropbox by name or content.",
+        "description": "[DROPBOX] Search for files and folders in Dropbox by name or content.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -100,7 +120,7 @@ TOOLS = [
     },
     {
         "name": "get_file_metadata",
-        "description": "Get detailed metadata for a file or folder including size, dates, and sharing info.",
+        "description": "[DROPBOX] Get detailed metadata for a file or folder including size, dates, and sharing info.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -114,7 +134,7 @@ TOOLS = [
     },
     {
         "name": "download_file",
-        "description": "Download a file from Dropbox and return its contents (text files) or base64 (binary).",
+        "description": "[DROPBOX] Download a file from Dropbox and return its contents (text files) or base64 (binary).",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -133,7 +153,7 @@ TOOLS = [
     },
     {
         "name": "read_text_file",
-        "description": "Read the text content of a file (txt, md, csv, json, etc.).",
+        "description": "[DROPBOX] Read the text content of a file (txt, md, csv, json, etc.).",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -152,7 +172,7 @@ TOOLS = [
     },
     {
         "name": "upload_file",
-        "description": "Upload a file to Dropbox. Supports text content or base64-encoded binary.",
+        "description": "[DROPBOX] Upload a file to Dropbox. Supports text content or base64-encoded binary.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -180,7 +200,7 @@ TOOLS = [
     },
     {
         "name": "create_folder",
-        "description": "Create a new folder in Dropbox.",
+        "description": "[DROPBOX] Create a new folder in Dropbox.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -194,7 +214,7 @@ TOOLS = [
     },
     {
         "name": "move_file",
-        "description": "Move or rename a file or folder.",
+        "description": "[DROPBOX] Move or rename a file or folder.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -212,7 +232,7 @@ TOOLS = [
     },
     {
         "name": "copy_file",
-        "description": "Copy a file or folder to a new location.",
+        "description": "[DROPBOX] Copy a file or folder to a new location.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -230,7 +250,7 @@ TOOLS = [
     },
     {
         "name": "delete_file",
-        "description": "Delete a file or folder (moves to trash, can be recovered).",
+        "description": "[DROPBOX] Delete a file or folder (moves to trash, can be recovered).",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -244,7 +264,7 @@ TOOLS = [
     },
     {
         "name": "get_shared_link",
-        "description": "Get or create a shared link for a file or folder.",
+        "description": "[DROPBOX] Get or create a shared link for a file or folder.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -263,7 +283,7 @@ TOOLS = [
     },
     {
         "name": "list_revisions",
-        "description": "List previous versions of a file.",
+        "description": "[DROPBOX] List previous versions of a file.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -282,7 +302,7 @@ TOOLS = [
     },
     {
         "name": "get_space_usage",
-        "description": "Get Dropbox account storage usage and quota.",
+        "description": "[DROPBOX] Get Dropbox account storage usage and quota.",
         "inputSchema": {
             "type": "object",
             "properties": {}
@@ -290,7 +310,7 @@ TOOLS = [
     },
     {
         "name": "test_connection",
-        "description": "Test the Dropbox API connection and return account info.",
+        "description": "[DROPBOX] Test the Dropbox API connection and return account info.",
         "inputSchema": {
             "type": "object",
             "properties": {}
@@ -647,7 +667,9 @@ def test_connection() -> Dict:
             "name": account.name.display_name,
             "email": account.email,
             "account_type": str(account.account_type),
-            "team": account.team.name if account.team else None
+            "team": account.team.name if account.team else None,
+            "team_member_access": bool(DROPBOX_SELECT_USER),
+            "select_user": DROPBOX_SELECT_USER
         }
     except AuthError as e:
         return {"success": False, "error": f"Authentication failed: {e}"}
@@ -706,9 +728,12 @@ def health():
     return jsonify({
         "service": "dropbox-mcp",
         "status": "healthy",
-        "version": "1.0.0",
+        "version": "2.1.0",
         "tools": len(TOOLS),
-        "api_configured": bool(DROPBOX_ACCESS_TOKEN or DROPBOX_REFRESH_TOKEN)
+        "api_configured": bool(DROPBOX_ACCESS_TOKEN or DROPBOX_REFRESH_TOKEN),
+        "team_member_access": bool(DROPBOX_SELECT_USER),
+        "select_user": DROPBOX_SELECT_USER[:20] + "..." if DROPBOX_SELECT_USER else None,
+        "timeout_seconds": DROPBOX_TIMEOUT
     })
 
 @app.route("/mcp", methods=["POST"])
@@ -732,7 +757,7 @@ def mcp_handler():
                 "result": {
                     "protocolVersion": "2024-11-05",
                     "capabilities": {"tools": {"listChanged": True}},
-                    "serverInfo": {"name": "dropbox-mcp", "version": "1.0.0"}
+                    "serverInfo": {"name": "dropbox-mcp", "version": "2.1.0"}
                 }
             })
         
@@ -778,4 +803,7 @@ def mcp_handler():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     logger.info(f"Starting Dropbox MCP on port {port}")
+    logger.info(f"Team member access: {bool(DROPBOX_SELECT_USER)}")
+    if DROPBOX_SELECT_USER:
+        logger.info(f"Select user: {DROPBOX_SELECT_USER}")
     app.run(host="0.0.0.0", port=port, debug=False)
